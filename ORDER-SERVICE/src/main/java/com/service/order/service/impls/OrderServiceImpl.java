@@ -34,7 +34,7 @@ public class OrderServiceImpl implements OrderService {
         this.orderRepo = orderRepo;
         this.mapper = mapper;
         this.InventoryServiceWebClient = builder
-                .baseUrl("http://inventory-service/api/inventory")
+                .baseUrl("http://api-gateway/api")
                 .build();
     }
 
@@ -104,16 +104,17 @@ public class OrderServiceImpl implements OrderService {
     public List<InventoryResponse> getAvailableStockInfoFromInventory(Set<String> skuCodes) {
         try{
             return InventoryServiceWebClient.get()
-                    .uri(
-                            "/stock",
-                            uriBuilder -> uriBuilder.queryParam("skuCodes", skuCodes)
-                                    .build()
+                    .uri("/inventory/stock",
+                            uriB -> uriB.queryParam("skuCodes", skuCodes).build()
                     )
                     .retrieve()
                     .bodyToFlux(InventoryResponse.class).collectList().block();
         }catch (Exception e){
             e.printStackTrace();
-            throw e;
+            throw new UnableToPlaceOrderException("Unable to place order at this point of time.",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE
+                    );
         }
     }
 }

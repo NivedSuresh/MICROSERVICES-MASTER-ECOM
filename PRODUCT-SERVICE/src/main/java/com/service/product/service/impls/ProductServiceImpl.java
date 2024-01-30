@@ -39,7 +39,7 @@ public class ProductServiceImpl implements ProductService {
         this.fileUtil = fileUtil;
         this.mapper = mapper;
         this.inventoryRestClient = builder
-                .baseUrl("http://inventory-service/api/inventory")
+                .baseUrl("http://api-gateway/api")
                 .build();
     }
 
@@ -55,12 +55,12 @@ public class ProductServiceImpl implements ProductService {
                     mapper.entityToInventoryRequest(product.getId(), request.getQuantity());
 
             HttpStatusCode statusCode = inventoryRestClient.post()
-                    .uri("/update")
+                    .uri("/inventory/update")
                     .body(inventoryRequest)
                     .exchange((req, res)-> res.getStatusCode());
 
             if(statusCode != HttpStatus.CREATED){
-                System.out.println(statusCode);
+                log.info("Status Code : {}",statusCode);
                 throw new InventoryWriteException(
                         "Error occurred while saving the product",
                         HttpStatus.INTERNAL_SERVER_ERROR.value(),
@@ -75,7 +75,7 @@ public class ProductServiceImpl implements ProductService {
 
             log.error("Exception Caught : {}", e.getMessage());
 
-            if(e instanceof InventoryWriteException) throw e;
+            if(e instanceof ProductException) throw e;
             throw new ProductWriteException("Failed to write product : ".concat(e.getMessage()),
                                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                                 Error.ERROR_SAVING_ENTITY);
