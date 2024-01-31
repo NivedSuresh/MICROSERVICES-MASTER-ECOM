@@ -1,8 +1,8 @@
 package com.service.order.service;
 
 import com.service.order.payloads.OrderRequest;
-import com.service.order.payloads.OrderDto;
+import reactor.core.publisher.Mono;
 
 public interface OrderService {
-    OrderDto createOrder(OrderRequest request, String jwt);
+    Mono<String> createOrder(OrderRequest request, String jwt);
 }

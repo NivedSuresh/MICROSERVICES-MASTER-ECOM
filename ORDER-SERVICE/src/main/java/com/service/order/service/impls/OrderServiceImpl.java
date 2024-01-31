@@ -1,14 +1,11 @@
 package com.service.order.service.impls;
 
+import com.service.order.exception.*;
 import com.service.order.exception.Error;
-import com.service.order.exception.LackOfInformationFromDbException;
-import com.service.order.exception.OutOfStockException;
-import com.service.order.exception.UnableToPlaceOrderException;
 import com.service.order.mapper.Mapper;
 import com.service.order.models.Order;
 import com.service.order.payloads.InventoryResponse;
 import com.service.order.payloads.OrderRequest;
-import com.service.order.payloads.OrderDto;
 import com.service.order.repo.OrderRepo;
 import com.service.order.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +16,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 import java.util.Map;
@@ -40,41 +38,65 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public OrderDto createOrder(OrderRequest request, String jwt) {
+    public Mono<String> createOrder(OrderRequest request, String jwt) {
 
         log.info("Received OrderRequest : {}", request);
-
         Map<String, Integer> requiredStockInfo =
                 mapper.getRequiredStockInfo(request.getOrderItemsDtoList());
-        List<InventoryResponse> availableStockInfo =
-                getAvailableStockInfoFromInventory(requiredStockInfo.keySet(), jwt).block();
 
-        /* Will throw an exception if there aren't enough
-        products in quantity for the specified SkuCode or if the
-        Request is not valid, ie -> purchase quantity should be >= 1 */
-        verifyRequestAndStock(availableStockInfo, requiredStockInfo);
-        log.info("All products have desired amount of quantity.");
+        return getAvailableStockInfoFromInventory(requiredStockInfo.keySet(), jwt)
+                .publishOn(Schedulers.boundedElastic())
+                .zipWith(getTotalPrice(request), (inventoryResponses, aDouble) -> {
+                    verifyRequestAndStock(inventoryResponses, requiredStockInfo);
 
+                    createOrder(request, aDouble)
+                            .subscribe(this::saveOrderToDb);
 
-        Double totalPrice = mapper.getOrderTotalPrice(request.getOrderItemsDtoList());
-        if(totalPrice == null) throw new UnableToPlaceOrderException(
+                    return "Order Created Successfully!";
+                }).onErrorMap(throwable ->  throwable);
+
+    }
+
+    private Mono<Double> getTotalPrice(OrderRequest request){
+        Double total = mapper.getOrderTotalPrice(request.getOrderItemsDtoList());
+        if(total == null || total<=0) throw new UnableToPlaceOrderException(
                 "Malfunction!",
                 HttpStatus.BAD_REQUEST.value(),
                 Error.ORDER_ITEM_LIST_PRICE_EMPTY
         );
+        return Mono.just(total);
+    }
 
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public void saveOrderToDb(Order order) {
+        System.out.println("Past exception, to save Order");
+        try{
+            order = orderRepo.save(order);
+            log.info("Order saved with ID : {}", order.getId());
+        }
+        catch (Exception e){
+            throw new UnableToPlaceOrderException(
+                    "Unable to place order at this point of time, try again later!",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    Error.FAILED_TO_WRITE_ORDER
+            );
+        }
+    }
+
+    private Mono<Order> createOrder(OrderRequest request, Double totalPrice){
+        System.out.println("Past exception, to create Order");
         Order order = new Order();
         order.setOrderItems(mapper.toOrderItemEntity(request.getOrderItemsDtoList(), order));
         order.setTotalPrice(totalPrice);
-        order = orderRepo.save(order);
-
-
-        log.info("Order saved with ID : {}", order.getId());
-        return mapper.orderEntityToDto(order);
+        return Mono.just(order);
     }
 
+
+    /* Will throw an exception if there aren't enough products in quantity for the specified
+            SkuCode or if the Request is not valid, ie -> purchase quantity should be >= 1 */
     private void verifyRequestAndStock(List<InventoryResponse> stockInfo, Map<String, Integer> requiredStockInfo) {
 
         log.info("Received quantity info in verify method : {}",stockInfo);
@@ -100,26 +122,10 @@ public class OrderServiceImpl implements OrderService {
                         Error.NOT_ENOUGH_STOCK
                 );
         }
+        log.info("All products have desired amount of quantity.");
     }
 
 
-//    public List<InventoryResponse> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
-//        try{
-//            return InventoryServiceWebClient.get()
-//                    .uri("/inventory/stock",
-//                            uriB -> uriB.queryParam("skuCodes", skuCodes).build()
-//                    )
-//                    .header("Authorization", jwt)
-//                    .retrieve()
-//                    .bodyToFlux(InventoryResponse.class).collectList().block();
-//        }catch (Exception e){
-//            e.printStackTrace();
-//            throw new UnableToPlaceOrderException("Unable to place order at this point of time.",
-//                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
-//                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE
-//                    );
-//        }
-//    }
 public Mono<List<InventoryResponse>> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
     return InventoryServiceWebClient.get()
             .uri("/inventory/stock", uriB -> uriB.queryParam("skuCodes", skuCodes).build())

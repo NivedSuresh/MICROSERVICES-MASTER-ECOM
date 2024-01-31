@@ -1,11 +1,11 @@
 package com.service.order.controllers;
 
 import com.service.order.payloads.OrderRequest;
-import com.service.order.payloads.OrderDto;
 import com.service.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -15,7 +15,8 @@ public class OrderController {
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/create")
-    public OrderDto createOrder(@RequestBody OrderRequest request, @RequestHeader("Authorization") String jwt){
+    public Mono<String> createOrder(@RequestBody OrderRequest request,
+                                    @RequestHeader("Authorization") String jwt){
         return orderService.createOrder(request, jwt);
     }
 

@@ -38,7 +38,7 @@ public class SecurityConfig {
             exc.pathMatchers("/eureka/**",
                     "/api/auth/login",
                     "/api/auth/signup").permitAll()
-                    .pathMatchers("/api/product/create").hasAuthority("ADMIN")
+                    .pathMatchers("/api/product/create").hasAuthority("USER")
                     .anyExchange().authenticated());
 
         return security.build();
