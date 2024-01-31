@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface ProductService {
 
-    ProductResponse saveOrUpdateProduct(ProductCreateRequest request);
+    ProductResponse saveOrUpdateProduct(ProductCreateRequest request, String jwt);
 
     List<ProductResponse> getAllProducts();
     void deleteImagesFromStorage(List<String> imagesUrl);

@@ -12,11 +12,13 @@ import com.service.order.payloads.OrderDto;
 import com.service.order.repo.OrderRepo;
 import com.service.order.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
@@ -40,14 +42,14 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public OrderDto createOrder(OrderRequest request) {
+    public OrderDto createOrder(OrderRequest request, String jwt) {
 
         log.info("Received OrderRequest : {}", request);
 
         Map<String, Integer> requiredStockInfo =
                 mapper.getRequiredStockInfo(request.getOrderItemsDtoList());
         List<InventoryResponse> availableStockInfo =
-                getAvailableStockInfoFromInventory(requiredStockInfo.keySet());
+                getAvailableStockInfoFromInventory(requiredStockInfo.keySet(), jwt).block();
 
         /* Will throw an exception if there aren't enough
         products in quantity for the specified SkuCode or if the
@@ -101,20 +103,32 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
-    public List<InventoryResponse> getAvailableStockInfoFromInventory(Set<String> skuCodes) {
-        try{
-            return InventoryServiceWebClient.get()
-                    .uri("/inventory/stock",
-                            uriB -> uriB.queryParam("skuCodes", skuCodes).build()
-                    )
-                    .retrieve()
-                    .bodyToFlux(InventoryResponse.class).collectList().block();
-        }catch (Exception e){
-            e.printStackTrace();
-            throw new UnableToPlaceOrderException("Unable to place order at this point of time.",
+//    public List<InventoryResponse> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
+//        try{
+//            return InventoryServiceWebClient.get()
+//                    .uri("/inventory/stock",
+//                            uriB -> uriB.queryParam("skuCodes", skuCodes).build()
+//                    )
+//                    .header("Authorization", jwt)
+//                    .retrieve()
+//                    .bodyToFlux(InventoryResponse.class).collectList().block();
+//        }catch (Exception e){
+//            e.printStackTrace();
+//            throw new UnableToPlaceOrderException("Unable to place order at this point of time.",
+//                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+//                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE
+//                    );
+//        }
+//    }
+public Mono<List<InventoryResponse>> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
+    return InventoryServiceWebClient.get()
+            .uri("/inventory/stock", uriB -> uriB.queryParam("skuCodes", skuCodes).build())
+            .header("Authorization", jwt)
+            .retrieve()
+            .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {})  // Use ParameterizedTypeReference for List
+            .onErrorMap(e -> new UnableToPlaceOrderException("Unable to place order at this point of time.",
                     HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE
-                    );
-        }
-    }
+                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE));  // Handle errors directly
+}
+
 }

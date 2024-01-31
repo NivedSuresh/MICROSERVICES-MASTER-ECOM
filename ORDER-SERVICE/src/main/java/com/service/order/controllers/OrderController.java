@@ -5,10 +5,7 @@ import com.service.order.payloads.OrderDto;
 import com.service.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -18,8 +15,8 @@ public class OrderController {
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/create")
-    public OrderDto createOrder(@RequestBody OrderRequest request){
-        return orderService.createOrder(request);
+    public OrderDto createOrder(@RequestBody OrderRequest request, @RequestHeader("Authorization") String jwt){
+        return orderService.createOrder(request, jwt);
     }
 
 

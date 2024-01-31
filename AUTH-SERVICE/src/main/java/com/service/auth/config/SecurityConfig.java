@@ -1,6 +1,7 @@
 package com.service.auth.config;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.service.auth.security.UserDetailsServiceImpl;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -15,10 +16,20 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -43,10 +54,18 @@ public class SecurityConfig {
         );
 
         security.oauth2ResourceServer(http ->
-                http.jwt(jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)));
+                http.jwt(jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
+                        .jwtAuthenticationConverter(jwt ->
+                                new JwtAuthenticationToken(jwt, extractAuthorities(jwt))
+                        )));
         security.logout(logout -> logout.logoutSuccessUrl("/logout-success"));
 
         return security.build();
+    }
+
+    private Collection<? extends GrantedAuthority> extractAuthorities(Jwt jwt) {
+        String claim = jwt.getClaim("authority");
+        return List.of(new SimpleGrantedAuthority(claim));
     }
 
     @Bean

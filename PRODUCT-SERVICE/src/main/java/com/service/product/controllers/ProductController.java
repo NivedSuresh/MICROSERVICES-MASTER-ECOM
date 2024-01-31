@@ -19,8 +19,9 @@ public class ProductController {
 
     @PostMapping(value = "/create", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     @ResponseStatus(HttpStatus.CREATED)
-    public ProductResponse createProduct(@ModelAttribute ProductCreateRequest request){
-        return productService.saveOrUpdateProduct(request);
+    public ProductResponse createProduct(@ModelAttribute ProductCreateRequest request,
+                                         @RequestHeader("Authorization") String jwt){
+        return productService.saveOrUpdateProduct(request, jwt);
     }
 
     @GetMapping("/get/all")

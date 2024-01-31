@@ -10,17 +10,12 @@ import com.service.product.payloads.ProductResponse;
 import com.service.product.repo.ProductRepo;
 import com.service.product.utils.FileUtil;
 import com.service.product.service.ProductService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.reactive.function.BodyInserter;
-import org.springframework.web.reactive.function.BodyInserters;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,7 +40,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional()
-    public ProductResponse saveOrUpdateProduct(ProductCreateRequest request) {
+    public ProductResponse saveOrUpdateProduct(ProductCreateRequest request, String jwt) {
         Product product = mapper.requestToEntity(request);
         try{
             product = productRepo.save(product);
@@ -56,6 +51,7 @@ public class ProductServiceImpl implements ProductService {
 
             HttpStatusCode statusCode = inventoryRestClient.post()
                     .uri("/inventory/update")
+                    .header("Authorization", jwt)
                     .body(inventoryRequest)
                     .exchange((req, res)-> res.getStatusCode());
 

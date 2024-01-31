@@ -14,18 +14,23 @@ spring:
           predicates:
           - Path=/api/product/**
           - Method=GET,POST
+#          filters:
+#            - JwtAuthenticationFilter
 
         - id: order-service
           uri: lb://order-service
           predicates:
             - Path=/api/order/**
             - Method=GET,POST
+#          filters:
+#            - JwtAuthenticationFilter
 
         - id: auth-service
           uri: lb://auth-service
           predicates:
             - Path=/api/auth/**
             - Method=GET,POST
+
 
         - id: inventory-service
           uri: lb://inventory-service
@@ -61,13 +66,18 @@ spring:
 
 logging:
   level:
-    root: info
+#    root: info
     org:
       springframework:
-        cloud:
-          gateway: trace
-          route:
-            RouteDefinitionLocator: info
+        security: debug
+#        cloud:
+#          gateway: trace
+#          route:
+#            RouteDefinitionLocator: info
 
 server:
   port: 8080
+
+rsa:
+  private-key: file:/Users/apple/Documents/Projects/E-COM/src/main/resources/certs/private.pem
+  public-key: file:/Users/apple/Documents/Projects/E-COM/src/main/resources/certs/public.pem

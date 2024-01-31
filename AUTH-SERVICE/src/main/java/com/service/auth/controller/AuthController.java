@@ -55,22 +55,11 @@ public class AuthController {
     }
 
     @ResponseStatus(HttpStatus.OK)
-    @GetMapping("/get/token")
-    public String jwtToken(Authentication authentication){
-        return jwtUtil.getJwtToken(authentication);
-    }
-
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    @GetMapping("/validate")
-    public boolean validateToken(@AuthenticationPrincipal Jwt principal){
-        log.debug("Authentication : {}", Optional.ofNullable(principal.getClaim("authority")));
-        log.debug("Authentication : {}", principal.getSubject());
-        return true;
-    }
-
-    @ResponseStatus(HttpStatus.OK)
     @GetMapping("/debug")
-    public void debug(Authentication authentication){
-        log.debug("Authentication Object : {}", authentication);
+    public void debug(Authentication authentication, @AuthenticationPrincipal Jwt principal){
+        log.info("Principal : {}", principal);
+        log.info("Authentication : {}", authentication);
+        log.info("Authentication : {}", Optional.ofNullable(principal.getClaim("authority")));
+        log.info("Authentication : {}", principal.getSubject());
     }
 }

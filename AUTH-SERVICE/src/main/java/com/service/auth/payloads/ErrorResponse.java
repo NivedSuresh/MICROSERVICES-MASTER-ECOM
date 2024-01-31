@@ -1,4 +1,4 @@
-package com.service.auth.exceptions;
+package com.service.auth.payloads;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
