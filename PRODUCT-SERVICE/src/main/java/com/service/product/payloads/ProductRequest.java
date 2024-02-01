@@ -11,7 +11,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class ProductCreateRequest {
+public class ProductRequest {
     private String id;
     @Size(min = 7, message = "Name should be minimum 7 characters.")
     private String name;

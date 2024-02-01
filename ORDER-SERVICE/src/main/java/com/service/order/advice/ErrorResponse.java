@@ -1,4 +1,4 @@
-package com.service.order.payloads;
+package com.service.order.advice;
 
 import lombok.Builder;
 import lombok.Data;

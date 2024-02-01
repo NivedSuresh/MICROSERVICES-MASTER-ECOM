@@ -1,5 +1,6 @@
 package com.service.order.controllers;
 
+import com.service.order.payloads.OrderDto;
 import com.service.order.payloads.OrderRequest;
 import com.service.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +16,8 @@ public class OrderController {
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/create")
-    public Mono<String> createOrder(@RequestBody OrderRequest request,
-                                    @RequestHeader("Authorization") String jwt){
+    public Mono<OrderDto> createOrder(@RequestBody OrderRequest request,
+                                            @RequestHeader("Authorization") String jwt){
         return orderService.createOrder(request, jwt);
     }
 

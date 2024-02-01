@@ -5,6 +5,7 @@ import com.service.order.exception.Error;
 import com.service.order.mapper.Mapper;
 import com.service.order.models.Order;
 import com.service.order.payloads.InventoryResponse;
+import com.service.order.payloads.OrderDto;
 import com.service.order.payloads.OrderRequest;
 import com.service.order.repo.OrderRepo;
 import com.service.order.service.OrderService;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
@@ -41,23 +43,35 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Mono<String> createOrder(OrderRequest request, String jwt) {
+    public Mono<OrderDto> createOrder(OrderRequest request, String jwt) {
 
         log.info("Received OrderRequest : {}", request);
+
         Map<String, Integer> requiredStockInfo =
                 mapper.getRequiredStockInfo(request.getOrderItemsDtoList());
 
         return getAvailableStockInfoFromInventory(requiredStockInfo.keySet(), jwt)
+
+                .doOnError(throwable -> log.error(throwable.getMessage()))
+
+                .handle((inventoryResponses, synchronousSink) ->
+                    verifyRequestAndStock(inventoryResponses, requiredStockInfo)
+                )
+
+                .then(getTotalPrice(request))
+
                 .publishOn(Schedulers.boundedElastic())
-                .zipWith(getTotalPrice(request), (inventoryResponses, aDouble) -> {
-                    verifyRequestAndStock(inventoryResponses, requiredStockInfo);
+                .handle((aDouble, synchronousSink) -> {
+                    OrderDto order = mapper.orderEntityToDto(saveOrderToDb(createOrder(request, aDouble)));
+                    synchronousSink.next(order);
+                }).map(o -> (OrderDto) o)
 
-                    createOrder(request, aDouble)
-                            .subscribe(this::saveOrderToDb);
-
-                    return "Order Created Successfully!";
-                }).onErrorMap(throwable ->  throwable);
-
+                .doOnError( e -> log.error(e.getMessage()))
+                .doFinally(signalType -> {
+                    if(signalType == SignalType.ON_COMPLETE)
+                        log.error("Order creation success!");
+                    else log.error("Order creation failure!");
+                });
     }
 
     private Mono<Double> getTotalPrice(OrderRequest request){
@@ -71,12 +85,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Transactional(propagation = Propagation.SUPPORTS)
-    public void saveOrderToDb(Order order) {
+    public Order saveOrderToDb(Order order) {
         System.out.println("Past exception, to save Order");
-        try{
-            order = orderRepo.save(order);
-            log.info("Order saved with ID : {}", order.getId());
-        }
+        try{ return orderRepo.save(order); }
         catch (Exception e){
             throw new UnableToPlaceOrderException(
                     "Unable to place order at this point of time, try again later!",
@@ -86,12 +97,11 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private Mono<Order> createOrder(OrderRequest request, Double totalPrice){
-        System.out.println("Past exception, to create Order");
+    private Order createOrder(OrderRequest request, Double totalPrice){
         Order order = new Order();
         order.setOrderItems(mapper.toOrderItemEntity(request.getOrderItemsDtoList(), order));
         order.setTotalPrice(totalPrice);
-        return Mono.just(order);
+        return order;
     }
 
 

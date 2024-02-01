@@ -1,7 +1,7 @@
 package com.service.product.controllers;
 
 
-import com.service.product.payloads.ProductCreateRequest;
+import com.service.product.payloads.ProductRequest;
 import com.service.product.payloads.ProductResponse;
 import com.service.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ public class ProductController {
 
     @PostMapping(value = "/create", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     @ResponseStatus(HttpStatus.CREATED)
-    public ProductResponse createProduct(@ModelAttribute ProductCreateRequest request,
+    public ProductResponse createProduct(@ModelAttribute ProductRequest request,
                                          @RequestHeader("Authorization") String jwt){
         return productService.saveOrUpdateProduct(request, jwt);
     }

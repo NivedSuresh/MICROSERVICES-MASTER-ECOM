@@ -5,7 +5,7 @@ import com.service.product.exception.Error;
 import com.service.product.mapper.Mapper;
 import com.service.product.model.Product;
 import com.service.product.payloads.InventoryRequest;
-import com.service.product.payloads.ProductCreateRequest;
+import com.service.product.payloads.ProductRequest;
 import com.service.product.payloads.ProductResponse;
 import com.service.product.repo.ProductRepo;
 import com.service.product.utils.FileUtil;
@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,7 +41,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional()
-    public ProductResponse saveOrUpdateProduct(ProductCreateRequest request, String jwt) {
+    public ProductResponse saveOrUpdateProduct(ProductRequest request, String jwt) {
         Product product = mapper.requestToEntity(request);
         try{
             product = productRepo.save(product);
@@ -77,6 +78,7 @@ public class ProductServiceImpl implements ProductService {
                                 Error.ERROR_SAVING_ENTITY);
         }
     }
+
 
     @Override
     public void deleteImagesFromStorage(List<String> imagesUrl) {
