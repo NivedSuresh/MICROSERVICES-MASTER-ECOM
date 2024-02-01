@@ -12,15 +12,15 @@ public class RestClientConfig {
 
     @LoadBalanced
     @Bean("InventoryService")
-    public RestClient restClient(RestClient.Builder builder){
+    public WebClient restClient(WebClient.Builder builder){
         return builder.baseUrl("http://inventory-service/api/inventory")
                 .build();
     }
 
     @Bean
     @LoadBalanced
-    public RestClient.Builder builder(){
-        return RestClient.builder();
+    public WebClient.Builder builder(){
+        return WebClient.builder();
     }
 
 }

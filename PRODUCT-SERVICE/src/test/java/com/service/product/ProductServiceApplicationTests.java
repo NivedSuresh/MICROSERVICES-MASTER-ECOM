@@ -19,6 +19,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.utility.DockerImageName;
 
 
+import java.util.Objects;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.testcontainers.shaded.org.hamcrest.Matchers.hasSize;
@@ -58,7 +60,7 @@ class ProductServiceApplicationTests {
                         .param("totalPrice", "100"))
                 .andExpect(status().isCreated());
 
-        Assertions.assertEquals(1, productService.getAllProducts().size());
+        Assertions.assertEquals(1, Objects.requireNonNull(productService.getAllProducts().block()).size());
     }
 
     @Test

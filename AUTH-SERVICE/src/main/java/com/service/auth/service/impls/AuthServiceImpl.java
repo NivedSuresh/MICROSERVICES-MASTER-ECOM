@@ -14,15 +14,15 @@ import com.service.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.BindingResult;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 import java.util.Objects;
@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtil jwtUtil;
 
     @Override
-    public AuthenticationResponse save(SignupRequest signupRequest) {
+    public Mono<AuthenticationResponse> save(SignupRequest signupRequest) {
 
         if(!Objects.equals(signupRequest.getPassword(), signupRequest.getConfirmPassword()))
             throw new PasswordMissMatchException(
@@ -47,23 +47,49 @@ public class AuthServiceImpl implements AuthService {
                     Error.SIGNUP_REQUEST_PASSWORD_MISMATCH
             );
 
-        if(userRepo.existsByEmail(signupRequest.getEmail()))
-            throw new UserAlreadyExistsException(
-                    "An account has already been registered with the provided Mail ID!",
-                    HttpStatus.NOT_ACCEPTABLE.value(),
-                    Error.USER_ALREADY_EXISTS
-            );
+        return Mono.just(userExistsByEmail(signupRequest.getEmail()))
 
-        UserEntity userEntity = mapper.signupRequestToEntity(signupRequest);
-        userEntity = userRepo.save(userEntity);
-        UserDto userDto = mapper.entityToDto(userEntity);
-        Authentication authentication = generateAuthenticationToken(userDto);
+                .zipWith(Mono.just(mapper.signupRequestToEntity(signupRequest)))
 
-        log.info("DTO : "+userDto);
-        log.info("Entity : "+userEntity);
-        log.info("Authentication : "+authentication);
+                .publishOn(Schedulers.boundedElastic())
+                .handle((tuple, sink) -> {
+                    if (tuple.getT1()) sink.error(throwUserAlreadyExists());
+                    sink.next(saveToDb(tuple.getT2()));
+                })
 
-        return new AuthenticationResponse(jwtUtil.getJwtToken(authentication), userDto);
+                .zipWhen(o -> {
+                    UserEntity entity = (UserEntity) o;
+                    return Mono.zip(
+                            Mono.just(mapper.entityToDto(entity)),
+                            Mono.just(generateAuthenticationToken(entity))
+                    );
+                })
+
+                .map(objects -> {
+                    Authentication authentication = objects.getT2().getT2();
+                    UserDto userDto = objects.getT2().getT1();
+                    return generateAuthenticationResponse(authentication, userDto);
+                });
+    }
+
+    private Throwable throwUserAlreadyExists() {
+        throw new UserAlreadyExistsException(
+                "An account has already been registered with the provided Mail ID!",
+                HttpStatus.NOT_ACCEPTABLE.value(),
+                Error.USER_ALREADY_EXISTS
+        );
+    }
+
+    private boolean userExistsByEmail(String email) {
+        return userRepo.existsByEmail(email);
+    }
+
+    private AuthenticationResponse generateAuthenticationResponse(Authentication t2, UserDto t1) {
+        return new AuthenticationResponse(jwtUtil.getJwtToken(t2), t1);
+    }
+
+    private UserEntity saveToDb(UserEntity entity) {
+        return userRepo.save(entity);
     }
 
     /*
@@ -111,9 +137,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Authentication generateAuthenticationToken(UserDto userDto) {
+    public Authentication generateAuthenticationToken(UserEntity entity) {
         List<GrantedAuthority> grantedAuthorities =
-                List.of(new SimpleGrantedAuthority(userDto.getRole()));
-        return new UsernamePasswordAuthenticationToken(userDto.getEmail(), null,grantedAuthorities);
+                List.of(new SimpleGrantedAuthority(entity.getRole()));
+        return new UsernamePasswordAuthenticationToken(entity.getEmail(), null,grantedAuthorities);
     }
 }

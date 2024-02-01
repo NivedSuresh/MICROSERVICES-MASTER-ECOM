@@ -49,7 +49,7 @@ public class AuthController {
     @PostMapping("/signup")
     public AuthenticationResponse signupUser(@Valid @RequestBody SignupRequest signupRequest, BindingResult result){
         if(result.hasErrors()) authService.handleFieldError(result);
-        AuthenticationResponse authenticationResponse = authService.save(signupRequest);
+        AuthenticationResponse authenticationResponse = authService.save(signupRequest).block();
         log.info("Authentication Response after Signing Up : {}",authenticationResponse);
         return authenticationResponse;
     }
