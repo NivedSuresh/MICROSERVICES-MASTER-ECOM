@@ -1,15 +1,15 @@
-package com.service.order.advice;
+package com.service.order.events;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Builder
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ErrorResponse {
-    private String code;
-    private String message;
+@Builder
+public class KafkaNotificationEvent {
+    private String notification;
 }

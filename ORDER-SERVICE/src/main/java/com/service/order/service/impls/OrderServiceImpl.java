@@ -1,5 +1,6 @@
 package com.service.order.service.impls;
 
+import com.service.order.events.KafkaNotificationEvent;
 import com.service.order.exception.*;
 import com.service.order.exception.Error;
 import com.service.order.mapper.Mapper;
@@ -12,6 +13,7 @@ import com.service.order.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,13 +33,16 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepo orderRepo;
     private final Mapper mapper;
     private final WebClient InventoryServiceWebClient;
+    private final KafkaTemplate<String, KafkaNotificationEvent> kafkaTemplate;
 
-    public OrderServiceImpl(OrderRepo orderRepo, Mapper mapper, WebClient.Builder builder) {
+    public OrderServiceImpl(OrderRepo orderRepo, Mapper mapper, WebClient.Builder builder,
+                            KafkaTemplate<String, KafkaNotificationEvent> kafkaTemplate) {
         this.orderRepo = orderRepo;
         this.mapper = mapper;
         this.InventoryServiceWebClient = builder
                 .baseUrl("http://api-gateway/api")
                 .build();
+        this.kafkaTemplate = kafkaTemplate;
     }
 
 
@@ -64,15 +69,32 @@ public class OrderServiceImpl implements OrderService {
                 .handle((aDouble, synchronousSink) -> {
                     OrderDto order = mapper.orderEntityToDto(saveOrderToDb(createOrder(request, aDouble)));
                     synchronousSink.next(order);
-                }).map(o -> (OrderDto) o)
+                }).map(o -> {
+                    OrderDto orderDto = (OrderDto) o;
+                    kafkaTemplate.send("notification", KafkaNotificationEvent.builder()
+                            .notification(createOrderSuccessionMail(orderDto.getTotalPrice()))
+                            .build()
+                    );
+                    return orderDto;
+                })
 
                 .doOnError( e -> log.error(e.getMessage()))
                 .doFinally(signalType -> {
                     if(signalType == SignalType.ON_COMPLETE)
-                        log.error("Order creation success!");
+                        log.info("Order creation success!");
+
                     else log.error("Order creation failure!");
                 });
     }
+
+
+    private String createOrderSuccessionMail(Double totalPrice) {
+        return new StringBuilder("Thank you for shopping with us, your order for ₹")
+                .append(totalPrice)
+                .append(" has been placed!\nIf this was unintended you can get back to us through the app!")
+                .toString();
+    }
+
 
     private Mono<Double> getTotalPrice(OrderRequest request){
         Double total = mapper.getOrderTotalPrice(request.getOrderItemsDtoList());
@@ -86,7 +108,6 @@ public class OrderServiceImpl implements OrderService {
 
     @Transactional(propagation = Propagation.SUPPORTS)
     public Order saveOrderToDb(Order order) {
-        System.out.println("Past exception, to save Order");
         try{ return orderRepo.save(order); }
         catch (Exception e){
             throw new UnableToPlaceOrderException(
@@ -117,6 +138,7 @@ public class OrderServiceImpl implements OrderService {
                 Error.INVALID_REQUEST_RECEIVED
         );
 
+
         for(InventoryResponse stock : stockInfo){
             if(requiredStockInfo.get(stock.getSkuCode()) < 1) throw new UnableToPlaceOrderException(
                     "The product matching the SkuCode ".concat(stock.getSkuCode()).
@@ -136,15 +158,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
-public Mono<List<InventoryResponse>> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
-    return InventoryServiceWebClient.get()
+
+    public Mono<List<InventoryResponse>> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
+        return InventoryServiceWebClient.get()
             .uri("/inventory/stock", uriB -> uriB.queryParam("skuCodes", skuCodes).build())
             .header("Authorization", jwt)
             .retrieve()
-            .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {})  // Use ParameterizedTypeReference for List
-            .onErrorMap(e -> new UnableToPlaceOrderException("Unable to place order at this point of time.",
+            .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {}) // Use ParameterizedTypeReference for List
+            .onErrorMap(e ->  new InventoryConnectionFailureException("Unable to place order at this point of time.",
                     HttpStatus.INTERNAL_SERVER_ERROR.value(),
                     Error.INVENTORY_SERVICE_CONNECTION_FAILURE));  // Handle errors directly
-}
+    }
 
 }

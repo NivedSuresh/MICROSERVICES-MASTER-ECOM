@@ -75,9 +75,10 @@ public class OrderMapper implements Mapper {
                     collect(Collectors.toMap(OrderItemDto::getSkuCode,
                             OrderItemDto::getQuantityPerItem));
         }catch (IllegalStateException e){
+            e.printStackTrace();
             log.error("Error while mapping OrderItems to HashMap of Required Stock : {}", e.getMessage());
             throw new OrderException(
-                    "Error while mapping OrderItems to HashMap of Required Stock",
+                    "There was an issue with your request, try clearing your cart and send again!",
                     HttpStatus.BAD_REQUEST.value(),
                     Error.INVALID_REQUEST_RECEIVED
             );

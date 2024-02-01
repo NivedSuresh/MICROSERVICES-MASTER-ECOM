@@ -16,6 +16,7 @@
         <option value="$PROJECT_DIR$/SERVICE-DISCOVERY/pom.xml" />
         <option value="$PROJECT_DIR$/API-GATEWAY/pom.xml" />
         <option value="$PROJECT_DIR$/AUTH-SERVICE/pom.xml" />
+        <option value="$PROJECT_DIR$/NOTIFICATION-SERVICE/pom.xml" />
       </list>
     </option>
   </component>

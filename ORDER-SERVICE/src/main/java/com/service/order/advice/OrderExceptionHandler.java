@@ -1,5 +1,6 @@
 package com.service.order.advice;
 
+import com.service.order.exception.InventoryConnectionFailureException;
 import com.service.order.exception.OrderException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
