@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SignupRequest {
-    @Email(message = "Enter a valid email")
+    @Email(message = "Enter a valid jwt")
     private String email;
     @Size(min = 5, max = 20, message = "Username should be of 5-20 characters!")
     private String username;

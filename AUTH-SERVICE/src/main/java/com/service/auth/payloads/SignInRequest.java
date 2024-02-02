@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class SignInRequest {
-    @Email(message = "Please enter a valid email address.")
+    @Email(message = "Please enter a valid jwt address.")
     private String email;
     private String password;
 }

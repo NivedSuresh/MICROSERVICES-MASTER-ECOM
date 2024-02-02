@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class KafkaNotificationEvent {
+public class NotificationEvent {
+    private String email;
     private String notification;
 }

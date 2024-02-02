@@ -34,6 +34,7 @@ public class OrderController {
                                       @RequestHeader("Authorization") String jwt){
         return orderService.createOrder(request, jwt)
                 .transform(CircuitBreakerOperator.of(circuitBreaker));
+        //enabling protection to the Mono using the rules provided in the circuit breaker instance
     }
 
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)

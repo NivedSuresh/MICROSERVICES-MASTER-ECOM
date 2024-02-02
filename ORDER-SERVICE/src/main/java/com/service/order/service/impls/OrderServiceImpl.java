@@ -1,6 +1,6 @@
 package com.service.order.service.impls;
 
-import com.service.order.events.KafkaNotificationEvent;
+import com.service.order.events.NotificationEvent;
 import com.service.order.exception.*;
 import com.service.order.exception.Error;
 import com.service.order.mapper.Mapper;
@@ -33,10 +33,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepo orderRepo;
     private final Mapper mapper;
     private final WebClient InventoryServiceWebClient;
-    private final KafkaTemplate<String, KafkaNotificationEvent> kafkaTemplate;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
     public OrderServiceImpl(OrderRepo orderRepo, Mapper mapper, WebClient.Builder builder,
-                            KafkaTemplate<String, KafkaNotificationEvent> kafkaTemplate) {
+                            KafkaTemplate<String, NotificationEvent> kafkaTemplate) {
         this.orderRepo = orderRepo;
         this.mapper = mapper;
         this.InventoryServiceWebClient = builder
@@ -65,13 +65,14 @@ public class OrderServiceImpl implements OrderService {
 
                 .then(getTotalPrice(request))
 
-                .publishOn(Schedulers.boundedElastic())
+//                .publishOn(Schedulers.boundedElastic())
                 .handle((aDouble, synchronousSink) -> {
                     OrderDto order = mapper.orderEntityToDto(saveOrderToDb(createOrder(request, aDouble)));
                     synchronousSink.next(order);
                 }).map(o -> {
                     OrderDto orderDto = (OrderDto) o;
-                    kafkaTemplate.send("notification", KafkaNotificationEvent.builder()
+                    kafkaTemplate.send("notification", NotificationEvent.builder()
+                            .email(jwt) //email should be extracted
                             .notification(createOrderSuccessionMail(orderDto.getTotalPrice()))
                             .build()
                     );
