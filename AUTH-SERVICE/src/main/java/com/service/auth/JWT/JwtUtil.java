@@ -4,5 +4,5 @@ import com.service.auth.payloads.UserDto;
 import org.springframework.security.core.Authentication;
 
 public interface JwtUtil {
-    String getJwtToken(Authentication authentication);
+    String getJwtToken(UserDto userDto);
 }

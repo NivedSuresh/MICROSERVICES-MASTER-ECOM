@@ -25,11 +25,10 @@ public class OrderController {
     private final OrderService orderService;
     private final io.github.resilience4j.circuitbreaker.CircuitBreaker circuitBreaker;
 
-    @CircuitBreaker(name = "inventory", fallbackMethod = "createOrderFallBack")
-    @TimeLimiter(name = "inventory", fallbackMethod = "createOrderInventoryTimeLimiter")
-    @Retry(name = "inventory", fallbackMethod = "createOrderRetryFailure")
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/create")
+    @CircuitBreaker(name = "inventory", fallbackMethod = "inventoryFallback")
+    @TimeLimiter(name = "inventory", fallbackMethod = "inventoryFallback")
     public Mono<OrderDto> createOrder(@RequestBody OrderRequest request,
                                       @RequestHeader("Authorization") String jwt){
         return orderService.createOrder(request, jwt)
@@ -37,34 +36,12 @@ public class OrderController {
         //enabling protection to the Mono using the rules provided in the circuit breaker instance
     }
 
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public Mono<ResponseEntity<ErrorResponse>> createOrderFallBack(OrderRequest request, String jwt, OrderException e){
-        return Mono.just(
-                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                        new ErrorResponse(
-                                e.getErrorCode(),
-                                e.getMessage()
-                )
-        ));
-    }
-
-    public Mono<ResponseEntity<ErrorResponse>> createOrderInventoryTimeLimiter(OrderRequest request, String jwt, Throwable throwable){
-        return Mono.just(
-                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                        new ErrorResponse(
-                                Error.INVENTORY_SERVICE_CONNECTION_FAILURE,
-                                "The request timed out, please try again later!"
-                        )
-                ));
-    }
-
-    public Mono<ResponseEntity<ErrorResponse>> createOrderRetryFailure(OrderRequest request, String jwt, Throwable throwable){
-        return Mono.just(
-                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse(
+    public Mono<ResponseEntity<ErrorResponse>> inventoryFallback(OrderRequest request, String jwt, Exception e){
+        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                new ErrorResponse(
                         Error.INVENTORY_SERVICE_CONNECTION_FAILURE,
-                        "Unable to initiate connection with the server, try again after sometime!"
-                        )
-                ));
+                        "This service is unavailable at the moment please try after sometime!"
+                )));
     }
 
 }

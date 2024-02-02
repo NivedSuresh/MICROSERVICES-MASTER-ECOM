@@ -1,5 +1,6 @@
 package com.service.order.service.impls;
 
+import com.service.order.advice.ErrorResponse;
 import com.service.order.events.NotificationEvent;
 import com.service.order.exception.*;
 import com.service.order.exception.Error;
@@ -10,9 +11,14 @@ import com.service.order.payloads.OrderDto;
 import com.service.order.payloads.OrderRequest;
 import com.service.order.repo.OrderRepo;
 import com.service.order.service.OrderService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -25,6 +31,7 @@ import reactor.core.scheduler.Schedulers;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 @Service
 @Slf4j
@@ -57,35 +64,41 @@ public class OrderServiceImpl implements OrderService {
 
         return getAvailableStockInfoFromInventory(requiredStockInfo.keySet(), jwt)
 
-                .doOnError(throwable -> log.error(throwable.getMessage()))
-
                 .handle((inventoryResponses, synchronousSink) ->
                     verifyRequestAndStock(inventoryResponses, requiredStockInfo)
                 )
 
+
                 .then(getTotalPrice(request))
 
-//                .publishOn(Schedulers.boundedElastic())
-                .handle((aDouble, synchronousSink) -> {
-                    OrderDto order = mapper.orderEntityToDto(saveOrderToDb(createOrder(request, aDouble)));
-                    synchronousSink.next(order);
-                }).map(o -> {
-                    OrderDto orderDto = (OrderDto) o;
-                    kafkaTemplate.send("notification", NotificationEvent.builder()
-                            .email(jwt) //email should be extracted
-                            .notification(createOrderSuccessionMail(orderDto.getTotalPrice()))
-                            .build()
-                    );
+
+                .publishOn(Schedulers.boundedElastic())
+                .map((aDouble) ->
+                    mapper.orderEntityToDto(saveOrderToDb(createOrder(request, aDouble)))
+                )
+
+
+                .map(orderDto -> {
+                    //email should be extracted from the jwt
+                    sendNotificationAfterOrderSuccession(jwt, orderDto.getTotalPrice());
                     return orderDto;
                 })
 
-                .doOnError( e -> log.error(e.getMessage()))
+
                 .doFinally(signalType -> {
                     if(signalType == SignalType.ON_COMPLETE)
                         log.info("Order creation success!");
 
                     else log.error("Order creation failure!");
                 });
+    }
+
+    private void sendNotificationAfterOrderSuccession(String email, Double totalPrice) {
+        kafkaTemplate.send("notification", NotificationEvent.builder()
+                .email(email)
+                .notification(createOrderSuccessionMail(totalPrice))
+                .build()
+        );
     }
 
 
@@ -160,15 +173,18 @@ public class OrderServiceImpl implements OrderService {
 
 
 
+    @Retry(name = "inventory")
     public Mono<List<InventoryResponse>> getAvailableStockInfoFromInventory(Set<String> skuCodes, String jwt) {
         return InventoryServiceWebClient.get()
             .uri("/inventory/stock", uriB -> uriB.queryParam("skuCodes", skuCodes).build())
             .header("Authorization", jwt)
             .retrieve()
-            .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {}) // Use ParameterizedTypeReference for List
+            .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {})
             .onErrorMap(e ->  new InventoryConnectionFailureException("Unable to place order at this point of time.",
                     HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE));  // Handle errors directly
+                    Error.INVENTORY_SERVICE_CONNECTION_FAILURE));// Handle errors directly
     }
+
+
 
 }

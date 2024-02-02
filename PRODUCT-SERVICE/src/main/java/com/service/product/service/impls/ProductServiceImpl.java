@@ -1,19 +1,23 @@
 package com.service.product.service.impls;
 
+import com.service.product.events.NotificationEvent;
 import com.service.product.exception.*;
 import com.service.product.exception.Error;
 import com.service.product.mapper.Mapper;
 import com.service.product.model.Product;
 import com.service.product.payloads.InventoryRequest;
-import com.service.product.payloads.ProductRequest;
+import com.service.product.payloads.ProductCreationRequest;
 import com.service.product.payloads.ProductResponse;
 import com.service.product.repo.ProductRepo;
 import com.service.product.utils.FileUtil;
 import com.service.product.service.ProductService;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -23,6 +27,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 @Service
 @Slf4j
@@ -32,60 +37,50 @@ public class ProductServiceImpl implements ProductService {
     private final FileUtil fileUtil;
     private final Mapper mapper;
     private final WebClient webClient;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
-    public ProductServiceImpl(ProductRepo productRepo, FileUtil fileUtil, Mapper mapper, WebClient.Builder builder) {
+    public ProductServiceImpl(ProductRepo productRepo, FileUtil fileUtil, Mapper mapper, WebClient.Builder builder, KafkaTemplate<String, NotificationEvent> kafkaTemplate) {
         this.productRepo = productRepo;
         this.fileUtil = fileUtil;
         this.mapper = mapper;
         this.webClient = builder
                 .baseUrl("http://api-gateway/api")
                 .build();
+        this.kafkaTemplate = kafkaTemplate;
     }
 
+    @Transactional
     @Override
-    @Transactional()
-    public ProductResponse saveOrUpdateProduct(ProductRequest request, String jwt) {
-        Product product = mapper.requestToEntity(request);
-        try{
-            product = productRepo.save(product);
-            log.info("Call has been made to inventory service.");
-
-            writeInventoryAndValidateHttpStatus(request, jwt, product);
-            return mapper.entityToResponse(product);
-        }
-        catch (Exception e){
-
-            log.error("Exception Caught : {}", e.getMessage());
-
-            if(e instanceof ProductException) throw e;
-            throw new ProductWriteException("Failed to write product : ".concat(e.getMessage()),
-                                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                                Error.ERROR_SAVING_ENTITY);
-        }
-    }
-
-
-    public Mono<ProductResponse> save(ProductRequest request, String jwt){
+    public Mono<ProductResponse> save(ProductCreationRequest request, String jwt){
 
         return Mono.just(mapper.requestToEntity(request))
 
                 .publishOn(Schedulers.boundedElastic())
-                .handle((product, synchronousSink) -> {
-                    product = productRepo.save(product);
-                    synchronousSink.next(product);
-                })
+                .map(productRepo::save)
 
-                .zipWhen(o ->
-                        writeInventoryAndValidateHttpStatus(request, jwt, (Product) o)
-                )
+                .zipWhen(product -> writeInventoryAndValidateHttpStatus(request, jwt, product))
 
                 .map(objects -> {
-                    Product product = (Product)objects.get(0);
-                    return mapper.entityToResponse(product);
+                    validateStatusCode(objects.getT2().getStatusCode(), objects.getT1());
+                    createKafkaEventForProductAddition(objects.getT1() , jwt);
+                    return mapper.entityToResponse(objects.getT1());
                 });
     }
 
-    private Mono<ResponseEntity<Void>> writeInventoryAndValidateHttpStatus(ProductRequest request, String jwt, Product product) {
+    private void createKafkaEventForProductAddition(Product product, String jwt) {
+        kafkaTemplate.send("notification", NotificationEvent.builder()
+                .email(jwt) //extract email from jwt
+                .notification(draftEmailForProductAddition(product)).build());
+    }
+
+    private String draftEmailForProductAddition(Product product) {
+        return new StringBuilder("A new Product has been added to the website with name '")
+                .append(product.getName()).append("'. The price for the product is ")
+                .append(product.getPrice()).append("!").toString();
+    }
+
+    @Retry(name = "inventory")
+    private Mono<ResponseEntity<Void>> writeInventoryAndValidateHttpStatus(ProductCreationRequest request, String jwt, Product product) {
         InventoryRequest inventoryRequest =
                 mapper.entityToInventoryRequest(product.getId(), request.getQuantity());
 

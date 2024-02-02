@@ -20,7 +20,9 @@ public class InventoryController {
 
     @GetMapping("/stock")
     @ResponseStatus(HttpStatus.OK)
+    @SneakyThrows
     public List<InventoryResponse> getStock(@RequestParam List<String> skuCodes){
+//        Thread.sleep(6000);
         return inventoryService.getInventoryStock(skuCodes);
     }
 

@@ -1,4 +1,4 @@
-package com.service.order.config;
+package com.service.auth.config;
 
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -11,17 +11,19 @@ import java.time.Duration;
 
 @Configuration
 public class CircuitBreakerConfiguration {
+
     @Bean
-    public CircuitBreaker inventoryCircuitBreaker() {
+    public CircuitBreaker circuitBreaker(){
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
-                .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
                 .slidingWindowSize(5)
-                .failureRateThreshold(50)
-                .waitDurationInOpenState(Duration.ofSeconds(5))
+                .enableAutomaticTransitionFromOpenToHalfOpen()
                 .permittedNumberOfCallsInHalfOpenState(3)
-                .automaticTransitionFromOpenToHalfOpenEnabled(true)
+                .waitDurationInOpenState(Duration.ofSeconds(10))
+                .failureRateThreshold(50)
                 .build();
+
         return CircuitBreakerRegistry.of(config).circuitBreaker("inventory");
     }
+
 
 }

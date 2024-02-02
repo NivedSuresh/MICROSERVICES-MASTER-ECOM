@@ -1,11 +1,11 @@
 package com.service.product.utils;
 
-import com.service.product.payloads.ProductRequest;
+import com.service.product.payloads.ProductCreationRequest;
 
 import java.util.List;
 
 public interface FileUtil {
-    List<String> uploadImagesAndGetURL(ProductRequest request, int imagesAllowed);
+    List<String> uploadImagesAndGetURL(ProductCreationRequest request, int imagesAllowed);
 
     void deleteImageFromFile(String imagesUrl);
 }

@@ -25,19 +25,18 @@ public class JwtUtilImpl implements JwtUtil{
     private final JwtEncoder jwtEncoder;
 
     @Override
-    public String getJwtToken(Authentication authentication) {
+    public String getJwtToken(UserDto userDto) {
         Instant now = Instant.now();
-        String authority = authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority).collect(Collectors.joining(" "));
+//        String authority = authentication.getAuthorities().stream()
+//                .map(GrantedAuthority::getAuthority).collect(Collectors.joining(" "));
 
-        log.info("Authentication authorities from getJwtToken method : {}" , authentication.getAuthorities());
-        log.info("Authority from getJwtToken method : {}" , authority);
+        log.info("Authority from getJwtToken method : {}" , userDto.getRole());
 
         JwtClaimsSet claimsSet = JwtClaimsSet.builder().issuedAt(now)
                 .expiresAt(now.plus(1, ChronoUnit.DAYS))
                 .issuer("self")
-                .subject(authentication.getName())
-                .claim("authority", authority)
+                .subject(userDto.getEmail())
+                .claim("authority", userDto.getRole())
                 .build();
 
         return this.jwtEncoder.encode(JwtEncoderParameters.from(claimsSet)).getTokenValue();

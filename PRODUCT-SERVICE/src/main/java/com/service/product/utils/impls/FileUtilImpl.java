@@ -1,6 +1,6 @@
 package com.service.product.utils.impls;
 
-import com.service.product.payloads.ProductRequest;
+import com.service.product.payloads.ProductCreationRequest;
 import com.service.product.utils.FileUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ public class FileUtilImpl implements FileUtil {
 
     private static final String IMAGE_UPLOAD_FOLDER = "/Users/apple/Documents/Projects/E-COM/PRODUCT-SERVICE/src/main/resources/static/images";
     @Override
-    public List<String> uploadImagesAndGetURL(ProductRequest request, int imagesAllowed) {
+    public List<String> uploadImagesAndGetURL(ProductCreationRequest request, int imagesAllowed) {
 
         if(imagesAllowed == 0) throw new RuntimeException("This product has already reached it's maximum image count.");
 

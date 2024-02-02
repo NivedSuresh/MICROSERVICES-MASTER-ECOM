@@ -3,7 +3,7 @@ package com.service.product.mapper.impls;
 import com.service.product.mapper.Mapper;
 import com.service.product.model.Product;
 import com.service.product.payloads.InventoryRequest;
-import com.service.product.payloads.ProductRequest;
+import com.service.product.payloads.ProductCreationRequest;
 import com.service.product.payloads.ProductResponse;
 import com.service.product.utils.FileUtil;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ public class ProductMapper implements Mapper {
     }
 
     @Override
-    public Product requestToEntity(ProductRequest request) {
+    public Product requestToEntity(ProductCreationRequest request) {
         return Product.builder()
                 .id(request.getId())
                 .name(request.getName())

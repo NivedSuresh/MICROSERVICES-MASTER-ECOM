@@ -2,6 +2,7 @@ package com.api.gateway.security;
 
 
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
@@ -18,7 +19,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebFluxSecurity
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final ReactiveJwtDecoder jwtDecoder;

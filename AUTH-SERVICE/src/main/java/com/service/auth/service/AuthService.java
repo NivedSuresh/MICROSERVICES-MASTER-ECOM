@@ -14,7 +14,7 @@ public interface AuthService {
 
     void handleFieldError(BindingResult result);
 
-    Authentication generateAuthenticationToken(UserEntity entity);
+    Authentication generateAuthenticationToken(SignInRequest request);
 
-    AuthenticationResponse login(SignInRequest signInRequest);
+    Mono<AuthenticationResponse> login(SignInRequest signInRequest);
 }

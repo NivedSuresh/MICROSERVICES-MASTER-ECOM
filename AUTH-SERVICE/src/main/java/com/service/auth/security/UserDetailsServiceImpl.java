@@ -23,9 +23,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final UserRepo userRepo;
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("USER"));
         UserEntity user = userRepo.findByEmail(username);
         if(user == null) throw new UsernameNotFoundException("Invalid username entered!");
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(user.getRole()));
         return new User(username, user.getPassword(), authorities);
     }
 }
