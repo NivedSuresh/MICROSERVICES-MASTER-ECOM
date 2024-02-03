@@ -14,6 +14,8 @@ import com.service.auth.repo.UserRepo;
 import com.service.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -25,6 +27,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Objects;
+import java.util.concurrent.*;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -36,6 +39,12 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private ScheduledExecutorService executorService;
+
+    @Autowired
+    public final void setKafkaExecutorService(@Qualifier("kafkaExecutorService") ScheduledExecutorService executorService){
+        this.executorService = executorService;
+    }
 
     @Override
     public Mono<AuthenticationResponse> save(SignupRequest signupRequest) {
@@ -54,13 +63,19 @@ public class AuthServiceImpl implements AuthService {
                 .publishOn(Schedulers.boundedElastic())
                 .handle((tuple, sink) -> {
                     if (tuple.getT1()) sink.error(throwUserAlreadyExists());
-                    sink.next(saveToDb(tuple.getT2()));
-                })
 
-                .map(o -> {
-                    UserEntity entity = (UserEntity) o;
-                    kafkaTemplate.send("notification",createUserSignUpNotificationEvent(entity));
-                    return generateAuthenticationResponse(mapper.entityToDto(entity));
+                    UserEntity entity = saveToDb(tuple.getT2());
+
+                    ScheduledFuture<?> future = executorService.schedule(() -> {
+                        kafkaTemplate.send("notification", createUserSignUpNotificationEvent(entity));
+                    }, 0, TimeUnit.SECONDS);
+
+//                    try { future.get(5, TimeUnit.SECONDS); }
+//                    catch (InterruptedException | ExecutionException | TimeoutException e) {
+//                        log.error("Exception caught : {}", e.getMessage());
+//                    }
+
+                    sink.next(generateAuthenticationResponse(mapper.entityToDto(entity)));
                 });
     }
 
